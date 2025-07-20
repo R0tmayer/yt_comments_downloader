@@ -68,8 +68,81 @@ class App(tk.Tk):
                 ], 'sticky': 'nswe'})
             ], 'sticky': 'nswe'})
         ])
+        style.configure('Red.TButton',
+            foreground='#fff',
+            background='#d32f2f',
+            borderwidth=0,
+            focusthickness=0,
+            focuscolor='none',
+            padding=10,
+            relief='flat',
+            font=(None, 14, 'bold')
+        )
+        style.map('Red.TButton',
+            background=[('!disabled', '#d32f2f')],
+            foreground=[('!disabled', '#fff')]
+        )
+        style.configure('Primary.TButton',
+            foreground='#fff',
+            background='#6c63ff',
+            borderwidth=0,
+            focusthickness=0,
+            focuscolor='none',
+            padding=10,
+            relief='flat',
+            font=(None, 14, 'bold')
+        )
+        style.map('Primary.TButton',
+            background=[('active', '#8577ff'), ('pressed', '#574fcf'), ('!disabled', '#6c63ff')],
+            foreground=[('!disabled', '#fff')]
+        )
+        style.layout('Primary.TButton', [
+            ('Button.focus', {'children': [
+                ('Button.padding', {'children': [
+                    ('Button.label', {'side': 'left', 'expand': 1})
+                ], 'sticky': 'nswe'})
+            ], 'sticky': 'nswe'})
+        ])
+        style.configure('Danger.TButton',
+            foreground='#fff',
+            background='#d32f2f',
+            borderwidth=0,
+            focusthickness=0,
+            focuscolor='none',
+            padding=10,
+            relief='flat',
+            font=(None, 14, 'bold')
+        )
+        style.map('Danger.TButton',
+            background=[('active', '#b71c1c'), ('pressed', '#b71c1c'), ('!disabled', '#d32f2f')],
+            foreground=[('!disabled', '#fff')]
+        )
+        style.layout('Danger.TButton', [
+            ('Button.focus', {'children': [
+                ('Button.padding', {'children': [
+                    ('Button.label', {'side': 'left', 'expand': 1})
+                ], 'sticky': 'nswe'})
+            ], 'sticky': 'nswe'})
+        ])
+        # --- Вкладки ---
+        notebook = ttk.Notebook(self)
+        notebook.pack(expand=True, fill="both")
+
+        # --- Вкладка 1: Комментарии с видео ---
+        video_tab = tk.Frame(notebook, bg="#18181b")
+        notebook.add(video_tab, text="Комментарии с видео")
+        self._setup_video_tab(video_tab)
+
+        # --- Вкладка 2: Комментарии с канала ---
+        channel_tab = tk.Frame(notebook, bg="#18181b")
+        notebook.add(channel_tab, text="Комментарии с канала")
+        channel_label = tk.Label(channel_tab, text="Здесь будут комментарии с канала", font=(None, 16, "bold"), fg="#fff", bg="#18181b")
+        channel_label.pack(pady=40)
+
+    def _setup_video_tab(self, parent):
+        # Всё, что было в setup_ui, кроме style/theme/notebook, переносим сюда, меняя self на self или parent
         # Контейнер
-        container = tk.Frame(self, bg="#18181b")
+        container = tk.Frame(parent, bg="#18181b")
         container.pack(expand=True, fill="both")
         # Заголовок
         title_frame = tk.Frame(container, bg="#18181b")
@@ -127,8 +200,17 @@ class App(tk.Tk):
             bottom_block,
             text="Скачать комментарии",
             command=self.start_download,
-            style='Rounded.TButton')
-        self.download_btn.pack(anchor="w", pady=(16, 0))
+            style='Primary.TButton')
+        self.download_btn.pack(anchor="w", pady=(16, 0), side="left")
+        # Кнопка СТОП
+        self.stop_btn = ttk.Button(
+            bottom_block,
+            text="СТОП",
+            style='Danger.TButton',
+            command=self.stop_download,
+            state="normal"
+        )
+        self.stop_btn.pack(anchor="w", pady=(16, 0), padx=(16, 0), side="left")
         # Прогресс
         progress_frame = tk.Frame(container, bg="#18181b")
         progress_frame.pack(anchor="w", padx=40, pady=(16, 0))
@@ -226,6 +308,8 @@ class App(tk.Tk):
             return
         self.progress_value_label.config(text=" 0")
         self.set_status("Ищу комментарии...")
+        self._stop_download = False
+        self.stop_btn.config(state="normal")
         # --- Получаем max_comments ---
         max_comments = None
         if self.download_mode.get() == "count":
@@ -238,6 +322,10 @@ class App(tk.Tk):
                 return
         threading.Thread(target=self.download_comments, args=(url, max_comments), daemon=True).start()
 
+    def stop_download(self):
+        self._stop_download = True
+        self.stop_btn.config(state="disabled")
+
     def download_comments(self, url: str, max_comments: int = None) -> None:
         try:
             # Плавная смена статусов
@@ -247,7 +335,15 @@ class App(tk.Tk):
             self.after(1200, lambda: self.set_status("🔍 Ищу комментарии..."))
             # Скачиваем комментарии с обновлением статуса и прогресса
             def do_download():
-                comments = download_youtube_comments(url, self.update_progress, max_comments)
+                comments = []
+                interrupted = False
+                for idx, comment in enumerate(self._comment_iter(url, max_comments)):
+                    if self._stop_download:
+                        interrupted = True
+                        break
+                    comments.append(comment)
+                    self.update_progress(idx + 1, 0)
+                self.stop_btn.config(state="disabled")
                 if not comments:
                     self.set_status("❌ Комментарии не найдены")
                     self.show_error("Комментарии не найдены.")
@@ -257,8 +353,12 @@ class App(tk.Tk):
                 self.set_status("💾 Сохраняю файл...")
                 filepath = get_next_filename(self.save_folder)
                 if save_comments_to_file(comments, filepath):
-                    self.set_status(f"✅ Готово! Файл сохранён ({len(comments)} комментариев)")
-                    self.show_success(filepath, len(comments))
+                    if interrupted:
+                        self.set_status(f"⏹️ Скачивание прервано пользователем ({len(comments)} комментариев)")
+                        self.show_success(filepath, len(comments), interrupted=True)
+                    else:
+                        self.set_status(f"✅ Готово! Файл сохранён ({len(comments)} комментариев)")
+                        self.show_success(filepath, len(comments))
                     self.url_entry.delete(0, tk.END)
                     self._add_placeholder()
                 else:
@@ -277,8 +377,14 @@ class App(tk.Tk):
         self.after(0, lambda: self.progress_value_label.config(text=f" {current}"))
         self.set_status("Скачиваю комментарии...")
 
-    def show_success(self, filepath: str, count: int = None) -> None:
-        self.after(0, lambda: SuccessPopup(self, filepath, count))
+    def _comment_iter(self, url, max_comments):
+        from downloader import download_youtube_comments
+        # Генератор, чтобы можно было прерывать скачивание
+        for idx, comment in enumerate(download_youtube_comments(url, yield_comments=True, max_comments=max_comments)):
+            yield comment
+
+    def show_success(self, filepath: str, count: int = None, interrupted: bool = False) -> None:
+        self.after(0, lambda: SuccessPopup(self, filepath, count, interrupted))
 
     def show_error(self, msg: str) -> None:
         self.after(0, lambda: messagebox.showerror("Ошибка", msg))
