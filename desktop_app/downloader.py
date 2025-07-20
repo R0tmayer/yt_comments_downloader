@@ -1,8 +1,3 @@
-"""
-Модуль для скачивания комментариев с YouTube.
-"""
-
-
 from typing import Callable, List
 import sys
 import os

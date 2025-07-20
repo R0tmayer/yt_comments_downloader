@@ -1,7 +1,3 @@
-"""
-Модуль для отображения попап-окна с результатом операции (tkinter).
-"""
-
 import tkinter as tk
 from tkinter import ttk
 import os
