@@ -1,2 +1,1 @@
-customtkinter
-youtube-comment-downloader
+requests

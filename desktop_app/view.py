@@ -1,9 +1,9 @@
 """
-Главное окно приложения с пользовательским интерфейсом.
+Главное окно приложения с пользовательским интерфейсом (tkinter).
 """
 
-import customtkinter as ctk
-from tkinter import messagebox, filedialog
+import tkinter as tk
+from tkinter import ttk, messagebox, filedialog, font
 import threading
 
 from config import *
@@ -12,10 +12,7 @@ from file_manager import get_next_filename, save_comments_to_file
 from downloader import download_youtube_comments, validate_youtube_url
 from popup import SuccessPopup
 
-ctk.set_appearance_mode(APPEARANCE_MODE)
-ctk.set_default_color_theme(COLOR_THEME)
-
-class App(ctk.CTk):
+class App(tk.Tk):
     """Главное окно приложения."""
     def __init__(self):
         super().__init__()
@@ -23,67 +20,95 @@ class App(ctk.CTk):
         self.geometry("800x500")
         self.resizable(False, False)
         self.save_folder = None
+        self.configure(bg="#18181b")
         self.setup_ui()
         self.load_settings()
+        self.set_status("Готов к работе")
 
     def setup_ui(self) -> None:
-        """Интерфейс с градиентом, увеличенным окном и сбалансированными размерами."""
-        # Градиентный фон через CTkFrame (имитация)
-        self.configure(fg_color=("#18181b", "#23232a"))
-        container = ctk.CTkFrame(self, fg_color=("#18181b", "#23232a"))
+        style = ttk.Style()
+        style.theme_use('clam')
+        style.configure('Rounded.TButton',
+                        foreground='#23232a',
+                        background='#fff',
+                        borderwidth=0,
+                        focusthickness=3,
+                        focuscolor='none',
+                        padding=6,
+                        relief='flat')
+        style.map('Rounded.TButton',
+                  background=[('active', '#e5e5e5')])
+        style.configure('Folder.TButton',
+                        foreground='#b2b2b2',
+                        background='#23232a',
+                        borderwidth=0,
+                        focusthickness=0,
+                        focuscolor='none',
+                        padding=4,
+                        relief='flat')
+        style.map('Folder.TButton',
+                  background=[('active', '#444')],
+                  foreground=[('active', '#fff')])
+        # Контейнер
+        container = tk.Frame(self, bg="#18181b")
         container.pack(expand=True, fill="both")
-        # Заголовок по центру с градиентом для Rotmayer
-        title_frame = ctk.CTkFrame(container, fg_color=("#18181b", "#23232a"))
+        # Заголовок
+        title_frame = tk.Frame(container, bg="#18181b")
         title_frame.pack(pady=(32, 10))
-        title_label = ctk.CTkLabel(title_frame, text="YTCommentsDownloader by ", font=ctk.CTkFont(size=22, weight="bold"), text_color="#fff")
+        title_font = font.Font(size=22, weight="bold")
+        title_label = tk.Label(title_frame, text="YTCommentsDownloader by ", font=title_font, fg="#fff", bg="#18181b")
         title_label.pack(side="left")
-        rotmayer_label = ctk.CTkLabel(title_frame, text="R0tmayer", font=ctk.CTkFont(size=22, weight="bold"), text_color=("#6c63ff", "#48c6ef"))
+        rotmayer_label = tk.Label(title_frame, text="R0tmayer", font=title_font, fg="#6c63ff", bg="#18181b")
         rotmayer_label.pack(side="left", padx=(2, 0))
         # Статус по центру
-        self.status_label = ctk.CTkLabel(container, text="", font=ctk.CTkFont(size=13, weight="bold"), text_color="#fff")
+        self.status_label = tk.Label(container, text="", font=(None, 13, "bold"), fg="#fff", bg="#18181b")
         self.status_label.pack(pady=(0, 20))
-        # Верхний блок для выбора папки (secondary)
-        top_block = ctk.CTkFrame(container, fg_color=("#18181b", "#23232a"))
+        # Верхний блок для выбора папки
+        top_block = tk.Frame(container, bg="#18181b")
         top_block.pack(anchor="w", padx=40, pady=(0, 0))
         self.setup_folder_selection(top_block)
-        # Нижний блок для ввода ссылки и кнопки (primary)
-        bottom_block = ctk.CTkFrame(container, fg_color=("#18181b", "#23232a"))
+        # Нижний блок для ввода ссылки и кнопки
+        bottom_block = tk.Frame(container, bg="#18181b")
         bottom_block.pack(anchor="w", padx=40, pady=(40, 0))
-        url_label = ctk.CTkLabel(bottom_block, text="Ссылка на видео", font=ctk.CTkFont(size=15), text_color="#fff")
+        url_label = tk.Label(bottom_block, text="Ссылка на видео", font=(None, 15), fg="#fff", bg="#18181b")
         url_label.pack(anchor="w", pady=(0, 8))
-        self.url_entry = ctk.CTkEntry(bottom_block, width=720, height=40, font=ctk.CTkFont(size=14), fg_color="#23232a", border_color="#444", border_width=2, text_color="#fff", corner_radius=14)
-        self.url_entry.pack(anchor="w", pady=4)
+        self.url_entry = tk.Entry(bottom_block, width=80, font=(None, 14), fg="#fff", bg="#23232a", insertbackground="#fff", relief="solid", bd=2)
+        self.url_entry.pack(anchor="w", pady=4, ipady=8)
         self.url_entry.insert(0, "https://www.youtube.com/watch?v=pMt4JZeZ0r4")
-        self.url_entry.configure(placeholder_text="Вставьте ссылку на видео...", placeholder_text_color="#b2b2b2")
-        self.download_btn = ctk.CTkButton(
+        self.url_entry_placeholder = "Вставьте ссылку на видео..."
+        self.url_entry.bind("<FocusIn>", self._clear_placeholder)
+        self.url_entry.bind("<FocusOut>", self._add_placeholder)
+        self._add_placeholder()
+        self.download_btn = ttk.Button(
             bottom_block,
             text="Скачать комментарии",
             command=self.start_download,
-            width=200,
-            height=40,
-            font=ctk.CTkFont(size=14, weight="bold"),
-            fg_color="#fff",
-            hover_color="#e5e5e5",
-            text_color="#23232a",
-            border_color="#444",
-            border_width=2,
-            corner_radius=12
-        )
+            style='Rounded.TButton')
         self.download_btn.pack(anchor="w", pady=(16, 0))
-        # Прогресс: обычный и жирный текст
-        progress_frame = ctk.CTkFrame(container, fg_color=("#18181b", "#23232a"))
-        progress_frame.pack(anchor="w", padx=52, pady=(16, 0))
-        self.progress_label = ctk.CTkLabel(progress_frame, text="Скачано комментариев:", font=ctk.CTkFont(size=13), text_color="#b2b2b2")
+        # Прогресс
+        progress_frame = tk.Frame(container, bg="#18181b")
+        progress_frame.pack(anchor="w", padx=40, pady=(16, 0))
+        self.progress_label = tk.Label(progress_frame, text="Скачано комментариев:", font=(None, 13), fg="#b2b2b2", bg="#18181b")
         self.progress_label.pack(side="left")
-        self.progress_value_label = ctk.CTkLabel(progress_frame, text=" 0", font=ctk.CTkFont(size=13, weight="bold"), text_color="#b2b2b2")
+        self.progress_value_label = tk.Label(progress_frame, text=" 0", font=(None, 13, "bold"), fg="#b2b2b2", bg="#18181b")
         self.progress_value_label.pack(side="left")
-        # Статус: обычный и жирный текст
-        status_frame = ctk.CTkFrame(container, fg_color=("#18181b", "#23232a"))
-        status_frame.pack(anchor="w", padx=52, pady=(4, 20))
-        self.status_label = ctk.CTkLabel(status_frame, text="Статус: ", font=ctk.CTkFont(size=13), text_color="#b2b2b2")
+        # Статус
+        status_frame = tk.Frame(container, bg="#18181b")
+        status_frame.pack(anchor="w", padx=40, pady=(4, 20))
+        self.status_label = tk.Label(status_frame, text="Статус: ", font=(None, 13), fg="#b2b2b2", bg="#18181b")
         self.status_label.pack(side="left")
-        self.status_value_label = ctk.CTkLabel(status_frame, text="Готов к работе", font=ctk.CTkFont(size=13, weight="bold"), text_color="#b2b2b2")
+        self.status_value_label = tk.Label(status_frame, text="", font=(None, 13, "bold"), fg="#b2b2b2", bg="#18181b")
         self.status_value_label.pack(side="left")
+
+    def _clear_placeholder(self, event=None):
+        if self.url_entry.get() == self.url_entry_placeholder:
+            self.url_entry.delete(0, tk.END)
+            self.url_entry.config(fg="#fff")
+
+    def _add_placeholder(self, event=None):
+        if not self.url_entry.get():
+            self.url_entry.insert(0, self.url_entry_placeholder)
+            self.url_entry.config(fg="#b2b2b2")
 
     def set_status(self, text: str) -> None:
         emoji = ""
@@ -101,37 +126,36 @@ class App(ctk.CTk):
             emoji = "❌"
         elif "успешно" in text or "готово" in text:
             emoji = "✅"
-        self.after(0, lambda: self.status_value_label.configure(text=f" {emoji} {text}"))
+        self.after(0, lambda: self.status_value_label.config(text=f" {emoji} {text}"))
 
     def setup_folder_selection(self, parent=None) -> None:
         frame_parent = parent if parent is not None else self
-        folder_frame = ctk.CTkFrame(frame_parent, fg_color=("#18181b", "#23232a"))
+        folder_frame = tk.Frame(frame_parent, bg="#18181b")
         folder_frame.pack(pady=8)
-        folder_text_label = ctk.CTkLabel(folder_frame, text="Папка для сохранения:", font=ctk.CTkFont(size=14), text_color="#b2b2b2")
+        folder_text_label = tk.Label(folder_frame, text="Папка для сохранения:", font=(None, 14), fg="#b2b2b2", bg="#18181b")
         folder_text_label.pack(side="left", padx=(0, 10))
-        self.folder_label = ctk.CTkLabel(folder_frame, text="Не выбрана", font=ctk.CTkFont(size=14), text_color="#b2b2b2")
+        self.folder_label = tk.Label(folder_frame, text="Не выбрана", font=(None, 14), fg="#b2b2b2", bg="#18181b")
         self.folder_label.pack(side="left", padx=(0, 15))
-        choose_folder_btn = ctk.CTkButton(folder_frame, text="Выбрать папку", command=self.choose_folder, width=140, height=32, font=ctk.CTkFont(size=13), fg_color="#23232a", text_color="#b2b2b2", hover_color="#444", border_color="#444", border_width=1, corner_radius=8)
+        choose_folder_btn = ttk.Button(folder_frame, text="Выбрать папку", command=self.choose_folder, style='Rounded.TButton')
         choose_folder_btn.pack(side="left", padx=(10, 0))
 
     def load_settings(self) -> None:
-        """Загружает сохраненные настройки."""
         self.save_folder = load_folder()
         if self.save_folder:
-            self.folder_label.configure(text=self.save_folder, text_color="white")
+            self.folder_label.config(text=self.save_folder, fg="white")
 
     def choose_folder(self) -> None:
-        """Открывает диалог выбора папки."""
         initial_dir = self.save_folder if self.save_folder else "~"
         folder = filedialog.askdirectory(initialdir=initial_dir, title="Выберите папку для сохранения")
         if folder:
             self.save_folder = folder
-            self.folder_label.configure(text=folder, text_color="white")
+            self.folder_label.config(text=folder, fg="white")
             save_folder(folder)
 
     def start_download(self) -> None:
-        """Запускает процесс скачивания комментариев."""
         url = self.url_entry.get().strip()
+        if url == self.url_entry_placeholder:
+            url = ""
         if not url:
             messagebox.showerror("Ошибка", "Введите ссылку на YouTube видео.")
             return
@@ -141,26 +165,29 @@ class App(ctk.CTk):
         if not validate_youtube_url(url):
             messagebox.showerror("Ошибка", "Некорректная ссылка на YouTube.")
             return
-        self.download_btn.configure(state="disabled")
-        self.progress_value_label.configure(text=" 0")
+        self.download_btn.state(["disabled"])
+        self.progress_value_label.config(text=" 0")
         self.set_status("Ищу комментарии...")
         threading.Thread(target=self.download_comments, args=(url,), daemon=True).start()
 
     def download_comments(self, url: str) -> None:
-        """Скачивает комментарии и сохраняет их в файл."""
         try:
             self.set_status("Подготавливаю к скачиванию...")
-            comments = download_youtube_comments(url, self.update_progress)
+            comments = download_youtube_comments(url, None)  # Не обновляем прогресс на этапе подготовки
             if not comments:
                 self.set_status("")
                 self.show_error("Комментарии не найдены.")
                 return
+            self.set_status("Скачиваю комментарии...")
+            # Теперь запускаем скачивание с обновлением прогресса
+            comments = download_youtube_comments(url, self.update_progress)
             self.set_status("Сохраняю файл...")
             filepath = get_next_filename(self.save_folder)
             if save_comments_to_file(comments, filepath):
                 self.set_status("")
                 self.show_success(filepath)
-                self.url_entry.delete(0, "end")
+                self.url_entry.delete(0, tk.END)
+                self._add_placeholder()
             else:
                 self.set_status("")
                 self.show_error("Ошибка сохранения файла.")
@@ -168,18 +195,16 @@ class App(ctk.CTk):
             self.set_status("")
             self.show_error(str(e))
         finally:
-            self.download_btn.configure(state="normal")
-            self.progress_value_label.configure(text=" 0")
+            self.download_btn.state(["!disabled"])
+            self.progress_value_label.config(text=" 0")
             self.set_status("Готов к работе")
 
     def update_progress(self, current: int, total: int) -> None:
-        self.after(0, lambda: self.progress_value_label.configure(text=f" {current}"))
+        self.after(0, lambda: self.progress_value_label.config(text=f" {current}"))
         self.set_status("Скачиваю комментарии...")
 
     def show_success(self, filepath: str) -> None:
-        """Показывает окно успешного сохранения."""
         self.after(0, lambda: SuccessPopup(self, filepath))
 
     def show_error(self, msg: str) -> None:
-        """Показывает окно ошибки."""
         self.after(0, lambda: messagebox.showerror("Ошибка", msg))

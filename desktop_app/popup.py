@@ -1,17 +1,19 @@
 """
-Модуль для отображения попап-окна с результатом операции.
+Модуль для отображения попап-окна с результатом операции (tkinter).
 """
 
-import customtkinter as ctk
+import tkinter as tk
+from tkinter import ttk
 import os
 
-class SuccessPopup(ctk.CTkToplevel):
+class SuccessPopup(tk.Toplevel):
     """Попап-окно для отображения успешного сохранения файла."""
     def __init__(self, parent, filepath: str):
         super().__init__(parent)
         self.title("Успех!")
-        self.geometry("450x120")
+        self.geometry("450x160")
         self.resizable(False, False)
+        self.configure(bg="#18181b")
         self.focus()
         self.grab_set()
         self.transient(parent)
@@ -21,9 +23,21 @@ class SuccessPopup(ctk.CTkToplevel):
 
     def setup_ui(self, filepath: str) -> None:
         filename = os.path.basename(filepath)
-        label = ctk.CTkLabel(self, text=f"Успешно сохранено в файл:\n{filename}", font=ctk.CTkFont(size=14))
+        label = tk.Label(self, text=f"Успешно сохранено в файл:\n{filename}", font=(None, 14), fg="#fff", bg="#18181b")
         label.pack(pady=20)
-        close_btn = ctk.CTkButton(self, text="Закрыть", command=self.close_popup)
+        style = ttk.Style(self)
+        style.theme_use('clam')
+        style.configure('Rounded.TButton',
+                        foreground='#23232a',
+                        background='#fff',
+                        borderwidth=0,
+                        focusthickness=3,
+                        focuscolor='none',
+                        padding=6,
+                        relief='flat')
+        style.map('Rounded.TButton',
+                  background=[('active', '#e5e5e5')])
+        close_btn = ttk.Button(self, text="Закрыть", command=self.close_popup, style='Rounded.TButton')
         close_btn.pack(pady=10)
 
     def start_auto_close_timer(self) -> None:
