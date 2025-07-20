@@ -76,10 +76,6 @@ class ChannelTab(tk.Frame):
         )
         self.channel_stop_btn.pack(side="left", padx=(16, 0))
         # Прогресс
-        progress_block = tk.Frame(self, bg="#18181b")
-        progress_block.pack(anchor="w", padx=40, pady=(16, 0))
-        self.channel_progress_label = tk.Label(progress_block, text="Скачано комментариев: 0", font=(None, 13), fg="#b2b2b2", bg="#18181b", anchor="w")
-        self.channel_progress_label.pack(side="left")
         # Статус
         status_block = tk.Frame(self, bg="#18181b")
         status_block.pack(anchor="w", padx=40, pady=(4, 20))
@@ -150,7 +146,6 @@ class ChannelTab(tk.Frame):
             return
         self.channel_stop_btn.state(["!disabled"])
         self.channel_download_btn.state(["disabled"])
-        self.channel_progress_label.config(text="Скачано комментариев: 0")
         self.channel_status_label.config(text="Статус: ")
         # определяем лимит видео
         max_videos = None
@@ -182,22 +177,19 @@ class ChannelTab(tk.Frame):
         stop_flag = self
         def process_video(idx, video_id):
             if getattr(stop_flag, '_stop_channel_download', False):
-                return (idx, None, None, '⏹️ Скачивание прервано пользователем')
+                return (idx, None, None, f'⏹️ Скачивание прервано пользователем')
+            # Только статус "Обрабатываю видео X из Y"
+            self._set_channel_status(f"Обрабатываю видео {idx+1} из {len(video_ids)}")
             video_url = f"https://www.youtube.com/watch?v={video_id}"
-            comments = []
-            def progress_callback(current, total):
-                self.channel_progress_label.config(text=f"Скачано комментариев: {current}")
-                if getattr(stop_flag, '_stop_channel_download', False):
-                    raise Exception("Остановлено пользователем")
             try:
-                comments = download_youtube_comments(video_url, progress_callback)
+                comments = download_youtube_comments(video_url)
             except Exception as e:
                 return (idx, None, None, f"⏹️ Остановлено: {e}")
             if comments:
                 folder = self.channel_save_folder if self.channel_save_folder else "."
                 filename = get_next_filename(folder)
                 save_comments_to_file(comments, filename)
-                return (idx, filename, len(comments), f"💾 Сохранено: {filename}")
+                return (idx, filename, len(comments), None)
             else:
                 return (idx, None, 0, f"❌ Нет комментариев для видео {idx+1}")
         futures = []
@@ -206,10 +198,10 @@ class ChannelTab(tk.Frame):
                 futures.append(executor.submit(process_video, idx, video_id))
             for f in as_completed(futures):
                 idx, filename, count, status = f.result()
-                self._set_channel_status(status)
+                if status:
+                    self._set_channel_status(status)
                 if filename:
                     created_files.append(filename)
-                self.channel_progress_label.config(text="Скачано комментариев: 0")
                 time.sleep(0.5)
                 if getattr(self, '_stop_channel_download', False):
                     break
