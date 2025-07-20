@@ -168,6 +168,7 @@ class ChannelTab(tk.Frame):
     def _download_channel_comments(self, channel_url, max_videos=None):
         import requests, re
         import time
+        from concurrent.futures import ThreadPoolExecutor, as_completed
         self._set_channel_status("⏸️ Готов к работе")
         self._set_channel_status("Ищу видео на канале...")
         video_ids = self._get_last_videos(channel_url, max_videos=max_videos)
@@ -177,42 +178,49 @@ class ChannelTab(tk.Frame):
             self.channel_stop_btn.state(["disabled"])
             return
         created_files = []
-        for idx, video_id in enumerate(video_ids):
-            if getattr(self, '_stop_channel_download', False):
-                self._set_channel_status("⏹️ Скачивание прервано пользователем")
-                break
-            self._set_channel_status(f"📥 Обрабатываю видео {idx+1} из {len(video_ids)}...")
+        max_workers = min(5, len(video_ids))  # до 5 потоков
+        stop_flag = self
+        def process_video(idx, video_id):
+            if getattr(stop_flag, '_stop_channel_download', False):
+                return (idx, None, None, '⏹️ Скачивание прервано пользователем')
             video_url = f"https://www.youtube.com/watch?v={video_id}"
             comments = []
             def progress_callback(current, total):
                 self.channel_progress_label.config(text=f"Скачано комментариев: {current}")
-                if getattr(self, '_stop_channel_download', False):
+                if getattr(stop_flag, '_stop_channel_download', False):
                     raise Exception("Остановлено пользователем")
             try:
                 comments = download_youtube_comments(video_url, progress_callback)
             except Exception as e:
-                self._set_channel_status(f"⏹️ Остановлено: {e}")
-                break
+                return (idx, None, None, f"⏹️ Остановлено: {e}")
             if comments:
                 folder = self.channel_save_folder if self.channel_save_folder else "."
                 filename = get_next_filename(folder)
                 save_comments_to_file(comments, filename)
-                created_files.append(filename)
-                self._set_channel_status(f"💾 Сохранено: {filename}")
+                return (idx, filename, len(comments), f"💾 Сохранено: {filename}")
             else:
-                self._set_channel_status(f"❌ Нет комментариев для видео {idx+1}")
-            self.channel_progress_label.config(text="Скачано комментариев: 0")
-            time.sleep(0.5)
+                return (idx, None, 0, f"❌ Нет комментариев для видео {idx+1}")
+        futures = []
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            for idx, video_id in enumerate(video_ids):
+                futures.append(executor.submit(process_video, idx, video_id))
+            for f in as_completed(futures):
+                idx, filename, count, status = f.result()
+                self._set_channel_status(status)
+                if filename:
+                    created_files.append(filename)
+                self.channel_progress_label.config(text="Скачано комментариев: 0")
+                time.sleep(0.5)
+                if getattr(self, '_stop_channel_download', False):
+                    break
         if not getattr(self, '_stop_channel_download', False):
             self._set_channel_status(f"✅ Готово! Обработано {len(created_files)} видео")
             self.channel_download_btn.state(["!disabled"])
             self.channel_stop_btn.state(["disabled"])
-            # Показываем попап с результатом
             self.after(0, lambda: self.show_channel_success_popup(created_files, len(video_ids)))
         else:
             self.channel_download_btn.state(["!disabled"])
             self.channel_stop_btn.state(["disabled"])
-            # Показываем попап с результатом при остановке
             self.after(0, lambda: self.show_channel_success_popup(created_files, len(video_ids), interrupted=True))
 
     def _set_channel_status(self, text):
