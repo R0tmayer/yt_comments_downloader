@@ -7,7 +7,7 @@ Desktop app for downloading YouTube comments to .txt files.
 1. Clone the repository:
    ```bash
    git clone git@github.com:R0tmayer/yt_comments_downloader.git
-   cd yt_comments_downloader/python_app
+   cd yt_comments_downloader/desktop_app
    ```
 2. Create and activate a virtual environment:
    ```bash
