@@ -17,38 +17,57 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("YTCommentsDownloader by R0tmayer")
-        self.geometry("800x500")
+        self.geometry("700x600")
         self.resizable(False, False)
         self.save_folder = None
         self.configure(bg="#18181b")
         self.setup_ui()
         self.load_settings()
-        self.set_status("Готов к работе")
+        self.set_status("⏸️ Готов к работе")
 
     def setup_ui(self) -> None:
         style = ttk.Style()
         style.theme_use('clam')
+        # Основная кнопка (фиолетовая)
         style.configure('Rounded.TButton',
-                        foreground='#23232a',
-                        background='#fff',
+                        foreground='#fff',
+                        background='#6c63ff',
                         borderwidth=0,
-                        focusthickness=3,
+                        focusthickness=0,
                         focuscolor='none',
-                        padding=6,
-                        relief='flat')
+                        padding=10,
+                        relief='flat',
+                        font=(None, 14, 'bold'))
         style.map('Rounded.TButton',
-                  background=[('active', '#e5e5e5')])
+                  background=[('active', '#8577ff'), ('pressed', '#574fcf')],
+                  foreground=[('disabled', '#b2b2b2')])
+        style.layout('Rounded.TButton', [
+            ('Button.focus', {'children': [
+                ('Button.padding', {'children': [
+                    ('Button.label', {'side': 'left', 'expand': 1})
+                ], 'sticky': 'nswe'})
+            ], 'sticky': 'nswe'})
+        ])
+        # Вторичная кнопка (тёмная)
         style.configure('Folder.TButton',
-                        foreground='#b2b2b2',
+                        foreground='#fff',
                         background='#23232a',
                         borderwidth=0,
                         focusthickness=0,
                         focuscolor='none',
-                        padding=4,
-                        relief='flat')
+                        padding=8,
+                        relief='flat',
+                        font=(None, 13))
         style.map('Folder.TButton',
-                  background=[('active', '#444')],
-                  foreground=[('active', '#fff')])
+                  background=[('active', '#444'), ('pressed', '#18181b')],
+                  foreground=[('disabled', '#b2b2b2')])
+        style.layout('Folder.TButton', [
+            ('Button.focus', {'children': [
+                ('Button.padding', {'children': [
+                    ('Button.label', {'side': 'left', 'expand': 1})
+                ], 'sticky': 'nswe'})
+            ], 'sticky': 'nswe'})
+        ])
         # Контейнер
         container = tk.Frame(self, bg="#18181b")
         container.pack(expand=True, fill="both")
@@ -79,6 +98,31 @@ class App(tk.Tk):
         self.url_entry.bind("<FocusIn>", self._clear_placeholder)
         self.url_entry.bind("<FocusOut>", self._add_placeholder)
         self._add_placeholder()
+
+        # --- Новый блок выбора количества комментариев ---
+        count_block = tk.Frame(
+            bottom_block,
+            bg="#23232a",
+            highlightbackground="#444",
+            highlightthickness=2,
+            bd=0,
+            width=650,
+            height=115
+        )
+        count_block.pack(anchor="w", pady=(18, 0))
+        count_block.pack_propagate(False)  # Отключает авто-подгонку по содержимому
+        count_block.configure(relief="ridge")
+        count_label = tk.Label(count_block, text="📊 Сколько комментариев скачать", font=(None, 15, "bold"), fg="#fff", bg="#23232a")
+        count_label.pack(anchor="w", pady=(8, 4), padx=12)
+        self.download_mode = tk.StringVar(value="all")
+        radio_all = ttk.Radiobutton(count_block, text="Скачать все", variable=self.download_mode, value="all", command=self._toggle_count_entry)
+        radio_all.pack(anchor="w", pady=(0, 2), padx=24)
+        radio_count = ttk.Radiobutton(count_block, text="Скачать количество:", variable=self.download_mode, value="count", command=self._toggle_count_entry)
+        radio_count.pack(anchor="w", pady=(0, 2), padx=24, side="left")
+        self.count_entry = tk.Entry(count_block, width=10, font=(None, 15), fg="#fff", bg="#18181b", insertbackground="#fff", relief="flat", bd=0, state="disabled", highlightthickness=1, highlightbackground="#6c63ff")
+        self.count_entry.pack(anchor="w", side="left", padx=(8, 0), pady=(0, 2))
+        self.count_entry.insert(0, "100")
+
         self.download_btn = ttk.Button(
             bottom_block,
             text="Скачать комментарии",
@@ -110,23 +154,38 @@ class App(tk.Tk):
             self.url_entry.insert(0, self.url_entry_placeholder)
             self.url_entry.config(fg="#b2b2b2")
 
+    def _toggle_count_entry(self):
+        if self.download_mode.get() == "count":
+            self.count_entry.config(state="normal")
+        else:
+            self.count_entry.config(state="disabled")
+
     def set_status(self, text: str) -> None:
-        emoji = ""
-        if "Ожидание" in text or "Готов" in text:
-            emoji = "⏸️"
-        elif "Ищу" in text:
-            emoji = "🔎"
-        elif "Подготавливаю" in text:
-            emoji = "🛠️"
-        elif "Скачиваю" in text:
-            emoji = "⬇️"
-        elif "Сохраняю" in text:
-            emoji = "💾"
-        elif "Ошибка" in text:
-            emoji = "❌"
-        elif "успешно" in text or "готово" in text:
-            emoji = "✅"
-        self.after(0, lambda: self.status_value_label.config(text=f" {emoji} {text}"))
+        # Если текст уже содержит эмодзи в начале, не добавляем второй раз
+        emoji_map = [
+            "⏸️", "🔍", "🛠️", "📥", "💾", "❌", "✅", "📊"
+        ]
+        if any(text.strip().startswith(e) for e in emoji_map):
+            self.after(0, lambda: self.status_value_label.config(text=f" {text}"))
+        else:
+            emoji = ""
+            if "Ожидание" in text or "Готов" in text:
+                emoji = "⏸️"
+            elif "Ищу" in text or "Проверяю" in text:
+                emoji = "🔍"
+            elif "Подготавливаю" in text or "Подключаюсь" in text:
+                emoji = "🛠️"
+            elif "Скачиваю" in text or "Загружаю" in text:
+                emoji = "📥"
+            elif "Сохраняю" in text:
+                emoji = "💾"
+            elif "Ошибка" in text:
+                emoji = "❌"
+            elif "успешно" in text or "готово" in text or "Готово" in text:
+                emoji = "✅"
+            elif "Найдено" in text:
+                emoji = "📊"
+            self.after(0, lambda: self.status_value_label.config(text=f" {emoji} {text}"))
 
     def setup_folder_selection(self, parent=None) -> None:
         frame_parent = parent if parent is not None else self
@@ -136,7 +195,7 @@ class App(tk.Tk):
         folder_text_label.pack(side="left", padx=(0, 10))
         self.folder_label = tk.Label(folder_frame, text="Не выбрана", font=(None, 14), fg="#b2b2b2", bg="#18181b")
         self.folder_label.pack(side="left", padx=(0, 15))
-        choose_folder_btn = ttk.Button(folder_frame, text="Выбрать папку", command=self.choose_folder, style='Rounded.TButton')
+        choose_folder_btn = ttk.Button(folder_frame, text="Выбрать папку", command=self.choose_folder, style='Folder.TButton')
         choose_folder_btn.pack(side="left", padx=(10, 0))
 
     def load_settings(self) -> None:
@@ -165,46 +224,61 @@ class App(tk.Tk):
         if not validate_youtube_url(url):
             messagebox.showerror("Ошибка", "Некорректная ссылка на YouTube.")
             return
-        self.download_btn.state(["disabled"])
         self.progress_value_label.config(text=" 0")
         self.set_status("Ищу комментарии...")
-        threading.Thread(target=self.download_comments, args=(url,), daemon=True).start()
-
-    def download_comments(self, url: str) -> None:
-        try:
-            self.set_status("Подготавливаю к скачиванию...")
-            comments = download_youtube_comments(url, None)  # Не обновляем прогресс на этапе подготовки
-            if not comments:
-                self.set_status("")
-                self.show_error("Комментарии не найдены.")
+        # --- Получаем max_comments ---
+        max_comments = None
+        if self.download_mode.get() == "count":
+            try:
+                max_comments = int(self.count_entry.get())
+                if max_comments <= 0:
+                    raise ValueError
+            except Exception:
+                messagebox.showerror("Ошибка", "Введите корректное количество комментариев.")
                 return
-            self.set_status("Скачиваю комментарии...")
-            # Теперь запускаем скачивание с обновлением прогресса
-            comments = download_youtube_comments(url, self.update_progress)
-            self.set_status("Сохраняю файл...")
-            filepath = get_next_filename(self.save_folder)
-            if save_comments_to_file(comments, filepath):
-                self.set_status("")
-                self.show_success(filepath)
-                self.url_entry.delete(0, tk.END)
-                self._add_placeholder()
-            else:
-                self.set_status("")
-                self.show_error("Ошибка сохранения файла.")
+        threading.Thread(target=self.download_comments, args=(url, max_comments), daemon=True).start()
+
+    def download_comments(self, url: str, max_comments: int = None) -> None:
+        try:
+            # Плавная смена статусов
+            self.set_status("🔍 Проверяю ссылку...")
+            self.after(400, lambda: self.set_status("🛠️ Подключаюсь к YouTube..."))
+            self.after(800, lambda: self.set_status("📡 Загружаю страницу видео..."))
+            self.after(1200, lambda: self.set_status("🔍 Ищу комментарии..."))
+            # Скачиваем комментарии с обновлением статуса и прогресса
+            def do_download():
+                comments = download_youtube_comments(url, self.update_progress, max_comments)
+                if not comments:
+                    self.set_status("❌ Комментарии не найдены")
+                    self.show_error("Комментарии не найдены.")
+                    self.progress_value_label.config(text=" 0")
+                    self.set_status("⏸️ Готов к работе")
+                    return
+                self.set_status("💾 Сохраняю файл...")
+                filepath = get_next_filename(self.save_folder)
+                if save_comments_to_file(comments, filepath):
+                    self.set_status(f"✅ Готово! Файл сохранён ({len(comments)} комментариев)")
+                    self.show_success(filepath, len(comments))
+                    self.url_entry.delete(0, tk.END)
+                    self._add_placeholder()
+                else:
+                    self.set_status("❌ Ошибка сохранения файла")
+                    self.show_error("Ошибка сохранения файла.")
+                self.progress_value_label.config(text=" 0")
+                self.set_status("⏸️ Готов к работе")
+            threading.Thread(target=do_download, daemon=True).start()
         except Exception as e:
-            self.set_status("")
+            self.set_status("❌ Ошибка при скачивании")
             self.show_error(str(e))
-        finally:
-            self.download_btn.state(["!disabled"])
             self.progress_value_label.config(text=" 0")
-            self.set_status("Готов к работе")
+            self.set_status("⏸️ Готов к работе")
 
     def update_progress(self, current: int, total: int) -> None:
         self.after(0, lambda: self.progress_value_label.config(text=f" {current}"))
         self.set_status("Скачиваю комментарии...")
 
-    def show_success(self, filepath: str) -> None:
-        self.after(0, lambda: SuccessPopup(self, filepath))
+    def show_success(self, filepath: str, count: int = None) -> None:
+        self.after(0, lambda: SuccessPopup(self, filepath, count))
 
     def show_error(self, msg: str) -> None:
         self.after(0, lambda: messagebox.showerror("Ошибка", msg))

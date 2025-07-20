@@ -8,7 +8,7 @@ import os
 
 class SuccessPopup(tk.Toplevel):
     """Попап-окно для отображения успешного сохранения файла."""
-    def __init__(self, parent, filepath: str):
+    def __init__(self, parent, filepath: str, count: int = None):
         super().__init__(parent)
         self.title("Успех!")
         self.geometry("450x160")
@@ -18,12 +18,15 @@ class SuccessPopup(tk.Toplevel):
         self.grab_set()
         self.transient(parent)
         self.after_id = None
-        self.setup_ui(filepath)
+        self.setup_ui(filepath, count)
         self.start_auto_close_timer()
 
-    def setup_ui(self, filepath: str) -> None:
+    def setup_ui(self, filepath: str, count: int = None) -> None:
         filename = os.path.basename(filepath)
-        label = tk.Label(self, text=f"Успешно сохранено в файл:\n{filename}", font=(None, 14), fg="#fff", bg="#18181b")
+        text = f"Успешно сохранено в файл:\n{filename}"
+        if count is not None:
+            text += f"\nСкачано комментариев: {count}"
+        label = tk.Label(self, text=text, font=(None, 14), fg="#fff", bg="#18181b")
         label.pack(pady=20)
         style = ttk.Style(self)
         style.theme_use('clam')
